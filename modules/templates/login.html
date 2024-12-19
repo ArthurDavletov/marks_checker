@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Вход в систему | Зачётная книжка УУНиТ</title>
+    </head>
+    <body>
+        <h1>Зачётная книжка УУНиТ</h1>
+        <form method="POST" onsubmit="disableButton()">
+            <input type="email" name="login" placeholder="Электронная почта" required>
+            <input type="password" name="password" placeholder="Пароль" required>
+            <button type="submit" id="form-submit">Войти</button>
+        </form>
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+    </body>
+</html>
