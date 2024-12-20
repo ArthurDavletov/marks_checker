@@ -2,9 +2,86 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Зачётная книжка УУНиТ</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <!-- <link rel="stylesheet" href="../static/css/index.css"> -->
+    <!-- Иконки из Google Fonts-->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=logout" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@40,400,0,0&icon_names=refresh" />
 </head>
 <body>
-    <h1>Добро пожаловать!</h1>
+    <nav>
+        <button class="nav-button" id="logout-button"><span class="material-symbols-outlined">logout</span></button>
+    </nav>
+    <h1 align="center">Электронная зачётная книжка УУНиТ</h1>
+    <div class="main-body">
+        <div class="before-marks">
+            <table id="info" border="1px">
+                <caption>Краткая информация</caption>
+                <tbody>
+                    <tr>
+                        <th>Зачётная книжка</th>
+                        <td id="gradebook_id"></td>
+                    </tr>
+                    <tr>
+                        <th>ФИО студента</th>
+                        <td id="name"></td>
+                    </tr>
+                    <tr>
+                        <th>Код специальности</th>
+                        <td id="study_code"></td>
+                    </tr>
+                    <tr>
+                        <th>Название специальности</th>
+                        <td id="study_name"></td>
+                    </tr>
+                    <tr>
+                        <th>Факультет</th>
+                        <td id="faculty"></td>
+                    </tr>
+                    <tr>
+                        <th>Приказ о зачислении</th>
+                        <td id="order"></td>
+                    </tr>
+                </tbody>
+            </table>
+            <table id="filters">
+                    <caption>Фильтр таблицы</caption>
+                <tbody>
+                    <tr>
+                        <th>№</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                    <tr>
+                        <th>Название</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                    <tr>
+                        <th>Часов</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                    <tr>
+                        <th>Оценка</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                    <tr>
+                        <th>Дата</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                    <tr>
+                        <th>Подпись</th>
+                        <td><input type="checkbox"></td>
+                    </tr>
+                    <tr>
+                        <th>ФИО</th>
+                        <td><input type="checkbox" checked></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button id="reload-button"><span class="material-symbols-outlined">refresh</span></button>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>
-</html>SSZSSSSSSSSSSSSSsa
+</html>

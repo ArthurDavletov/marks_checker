@@ -1,0 +1,44 @@
+nav {
+    border-bottom: 2px solid;
+    display: grid;
+    grid-template-columns: auto 40px;
+    grid-template-rows: 40px;
+    grid-template-areas: "empty logout";
+}
+
+button.nav-button {
+    cursor: pointer;
+    border-width: 0px;
+    grid-area: logout;
+}
+
+button#reload-button {
+    grid-area: reload;
+}
+
+table#indo {
+    grid-area: info;
+}
+
+table#filters {
+    grid-area: filters;
+}
+
+
+button#logout-button {
+    border-left: 1px solid;
+}
+
+body {
+    margin: 0;
+}
+
+div.main-body {
+    margin: 2%;
+}
+
+div.before-marks {
+    display: grid;
+    /* grid-template-columns: ; */
+    grid-template-areas: "info filters reload";
+}

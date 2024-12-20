@@ -1,4 +1,6 @@
 flask
 requests
-selenium
 python-dotenv
+sqlalchemy
+fake-useragent
+beautifulsoup4

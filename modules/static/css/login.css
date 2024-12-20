@@ -1,0 +1,30 @@
+body {
+    margin: 1%;
+}
+
+div.auth-form {
+    display: grid;
+    grid-template-areas:
+    ". . ."
+    ". form ."
+    ". . .";
+}
+
+form.auth-form {
+    display: grid;
+    grid-auto-flow: row;
+    grid-area: form;
+    row-gap: 10px;
+    border-style: dashed;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+input.auth-input {
+    block-size: 30px;
+    font-size: 20px;
+}
+
+button#form-submit {
+    font-size: 20px;
+}
