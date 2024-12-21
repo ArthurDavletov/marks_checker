@@ -14,7 +14,7 @@
     <nav>
         <button class="nav-button" id="logout-button"><span class="material-symbols-outlined">logout</span></button>
     </nav>
-    <h1 align="center">Электронная зачётная книжка УУНиТ</h1>
+    <h1 align="center">Зачётная книжка УУНиТ</h1>
     <div class="main-body">
         <div class="before-marks">
             <table id="info" border="1px">
@@ -22,27 +22,27 @@
                 <tbody>
                     <tr>
                         <th>Зачётная книжка</th>
-                        <td id="gradebook_id"></td>
+                        <td id="gradebook-id">{{ context["gradebook_id"] }}</td>
                     </tr>
                     <tr>
                         <th>ФИО студента</th>
-                        <td id="name"></td>
+                        <td id="name">{{ context["name"] }}</td>
                     </tr>
                     <tr>
                         <th>Код специальности</th>
-                        <td id="study_code"></td>
+                        <td id="study-code">{{ context["study_code"] }}</td>
                     </tr>
                     <tr>
                         <th>Название специальности</th>
-                        <td id="study_name"></td>
+                        <td id="study-name">{{ context["study_name"] }}</td>
                     </tr>
                     <tr>
                         <th>Факультет</th>
-                        <td id="faculty"></td>
+                        <td id="faculty">{{ context["faculty"] }}</td>
                     </tr>
                     <tr>
                         <th>Приказ о зачислении</th>
-                        <td id="order"></td>
+                        <td id="order">{{ context["order"] }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -79,7 +79,12 @@
                     </tr>
                 </tbody>
             </table>
-            <button id="reload-button"><span class="material-symbols-outlined">refresh</span></button>
+            <span id="right-side">
+                <button id="reload-button"><span class="material-symbols-outlined">refresh</span></button>
+                <span class="mean-mark">
+                    Средний балл: <span id="mean-mark"></span>
+                </span>                
+            </span>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/index.js') }}"></script>

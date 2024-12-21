@@ -1,14 +1,12 @@
 import os
-import re
 
 import flask
 from dotenv import load_dotenv
-from bs4 import BeautifulSoup
 from flask import Flask, request, redirect, url_for, render_template
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from modules.models import Base
+from modules.models import Base, Gradebook
 from modules.parser import MarksParser
 
 
@@ -23,10 +21,20 @@ def is_registered():
     return all(key in cookies for key in ("isu_person", "token", "PHPSESSID"))
 
 
-def load_table():
-    with open("temp.txt", encoding = "utf-8") as file:
-        html = re.sub(r'>\s+<', '><', file.read().replace('\n', ''))
-        soup = BeautifulSoup(html, "html.parser")
+def load_gradebook_info() -> dict:
+    context = {}
+    s = db.query(Gradebook).filter(Gradebook.id == parser.find_gradebook_id()).first()
+    context["gradebook_id"] = s.id
+    context["name"] = s.name
+    context["study_code"] = s.study_code
+    context["study_name"] = s.study_name
+    context["faculty"] = s.faculty
+    context["order"] = s.order
+    return context
+
+# with open("temp.txt", encoding = "utf-8") as file:
+#     html = re.sub(r'>\s+<', '><', file.read().replace('\n', ''))
+#     soup = BeautifulSoup(html, "html.parser")
 
 
 load_dotenv()
@@ -39,8 +47,10 @@ parser = MarksParser(db)
 def index_get():
     if not is_registered():
         return redirect(url_for("login_get"))
-    load_table()
-    return render_template("index.html")
+    if "isu_person" not in parser.cookies:
+        parser.update_cookies(request.cookies)
+    context = load_gradebook_info()
+    return render_template("index.html", context = context)
 
 
 @app.route("/", methods=["POST"])

@@ -12,10 +12,6 @@ button.nav-button {
     grid-area: logout;
 }
 
-button#reload-button {
-    grid-area: reload;
-}
-
 table#indo {
     grid-area: info;
 }
@@ -23,7 +19,6 @@ table#indo {
 table#filters {
     grid-area: filters;
 }
-
 
 button#logout-button {
     border-left: 1px solid;
@@ -37,8 +32,19 @@ div.main-body {
     margin: 2%;
 }
 
+span#right-side {
+    display: grid;
+    grid-area: right;
+    align-items: stretch;
+}
+
+span.mean-mark {
+    align-self: center;
+}
+
 div.before-marks {
     display: grid;
     /* grid-template-columns: ; */
-    grid-template-areas: "info filters reload";
+    grid-template-areas: "info filters right";
+    grid-template-columns: 2fr 2fr 1fr;
 }

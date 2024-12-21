@@ -5,6 +5,8 @@ from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from requests.cookies import RequestsCookieJar
 from sqlalchemy.orm.session import Session
+from sqlalchemy.orm.sync import update
+from werkzeug.datastructures import ImmutableMultiDict
 
 from modules.models import Gradebook
 
@@ -51,7 +53,7 @@ class MarksParser:
             self.__in_account = True
             page = session.post(self.__login_url, data = data, cookies = self.cookies,
                                 headers = self.headers)
-            self.cookies.update(page.cookies)
+            self.update_cookies(page.cookies)
             self.save_gradebook()
             return True
 
@@ -65,19 +67,39 @@ class MarksParser:
         if self.__in_account:
             self.exit()
 
+    def update_cookies(self, cookies: RequestsCookieJar | ImmutableMultiDict[str, str]):
+        for cookie in cookies:
+            if isinstance(cookies, RequestsCookieJar):
+                if cookie.name not in self.cookies:
+                    self.cookies.set(name = cookie.name, value = cookie.value, expires = cookie.expires,
+                                     path = cookie.path, secure = cookie.secure)
+            elif isinstance(cookie, str):
+                if cookie not in self.cookies:
+                    self.cookies.set(name=cookie, value = cookies[cookie])
+        self.save_gradebook()
+
     def save_gradebook(self):
         """Сохраняем информацию о зачётной книжке и предметов"""
         with requests.session() as session:
             session.cookies = self.cookies
+            for c, value in self.cookies.items():
+                if c == "isu_person":
+                    isu_person = int(value)
+                    break
             session.headers = self.headers
             card_text = session.get(self.__card_url).text
             button = BeautifulSoup(card_text, "html.parser").find("a", class_ = "btn-warning")
             site = f"{self.__main_url}{button.get("href")}"
             html_text = re.sub(r'>\s+<', '><', session.get(site).text.replace('\n', ''))
             self.gradebook_soup = BeautifulSoup(html_text, "html.parser")
-            isu_person = int(self.cookies.get("isu_person"))
             if not self.db.query(Gradebook).filter(Gradebook.user_id == isu_person).first():
                 self.__save_gradebook_info()
+
+    def find_gradebook_id(self):
+        for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
+            value = elem.next_sibling.string
+            if elem.string == "Зачетная книжка":
+                return int(value)
 
     def __save_gradebook_info(self):
         """Сохранение краткой информации о зачётной книжке в БД.
