@@ -3,4 +3,5 @@ requests
 python-dotenv
 sqlalchemy
 fake-useragent
+werkzeug
 beautifulsoup4
