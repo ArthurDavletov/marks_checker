@@ -9,7 +9,7 @@ from requests.cookies import RequestsCookieJar
 from sqlalchemy.orm.session import Session
 from werkzeug.datastructures import ImmutableMultiDict
 
-from modules.models import Gradebook, Semester, Exam, Credit
+from modules.models import Gradebook, Semester, Exam, Credit, User
 
 
 class MarksParser:
@@ -180,6 +180,9 @@ class MarksParser:
             html_text = re.sub(r'>\s+<', '><', session.get(site).text.replace('\n', ''))
             self.gradebook_soup = BeautifulSoup(html_text, "html.parser")
             self.update_gradebook_id()
+            if not self.db.query(User).filter(User.id == self.user_id).first():
+                self.db.add(User(id=self.user_id))
+                self.db.commit()
             if not self.db.query(Gradebook).filter(Gradebook.user_id == self.user_id).first():
                 self.__save_gradebook_info()
             for detail in self.gradebook_soup.findAll("details"):

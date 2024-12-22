@@ -6,11 +6,14 @@ from flask import Flask, request, redirect, url_for, render_template
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from modules.models import Base, Gradebook, Exam, Credit, Semester
+from modules.models import Base, Gradebook, User, Semester
 from modules.parser import MarksParser
+from time import sleep
 
 
-engine = create_engine("sqlite:///database.db")
+load_dotenv()
+sleep(5)
+engine = create_engine(os.getenv("DATABASE_URL"))
 Base.metadata.create_all(bind = engine)
 db_session = sessionmaker(bind = engine)
 db = db_session()
@@ -33,9 +36,8 @@ def load_gradebook_info() -> dict:
     return context
 
 
-load_dotenv()
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("token")
+app.config["SECRET_KEY"] = os.getenv("FLASK_TOKEN")
 parser = MarksParser(db)
 
 
@@ -48,6 +50,9 @@ def index_get():
     parser.save_gradebook()
     context = load_gradebook_info()
     context |= parser.get_marks()
+    s = db.query(Semester).all()
+    print(s)
+    print(*[p.name for p in s])
     return render_template("index.html", context = context)
 
 @app.route("/", methods=["POST"])

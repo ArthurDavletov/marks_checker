@@ -5,3 +5,5 @@ sqlalchemy
 fake-useragent
 werkzeug
 beautifulsoup4
+pymysql
+cryptography
