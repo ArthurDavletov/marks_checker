@@ -6,6 +6,10 @@ nav {
     grid-template-areas: "empty logout";
 }
 
+h1 {
+    text-align: center;
+}
+
 button.nav-button {
     cursor: pointer;
     border-width: 0px;
@@ -14,6 +18,11 @@ button.nav-button {
 
 table#indo {
     grid-area: info;
+}
+
+div.main-body {
+    display: grid;
+    row-gap: 20px;
 }
 
 table#filters {
@@ -44,7 +53,6 @@ span.mean-mark {
 
 div.before-marks {
     display: grid;
-    /* grid-template-columns: ; */
     grid-template-areas: "info filters right";
     grid-template-columns: 2fr 2fr 1fr;
 }

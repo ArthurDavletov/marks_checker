@@ -14,10 +14,10 @@
     <nav>
         <button class="nav-button" id="logout-button"><span class="material-symbols-outlined">logout</span></button>
     </nav>
-    <h1 align="center">Зачётная книжка УУНиТ</h1>
+    <h1>Зачётная книжка УУНиТ</h1>
     <div class="main-body">
         <div class="before-marks">
-            <table id="info" border="1px">
+            <table border="1px" id="info">
                 <caption>Краткая информация</caption>
                 <tbody>
                     <tr>
@@ -50,42 +50,108 @@
                     <caption>Фильтр таблицы</caption>
                 <tbody>
                     <tr>
-                        <th>№</th>
-                        <td><input type="checkbox" checked></td>
+                        <th>Тип</th>
+                        <td><input class="filters" name="type" type="checkbox" checked></td>
                     </tr>
                     <tr>
-                        <th>Название</th>
-                        <td><input type="checkbox" checked></td>
+                        <th>Предмет</th>
+                        <td><input class="filters" name="subject" type="checkbox" checked></td>
                     </tr>
                     <tr>
                         <th>Часов</th>
-                        <td><input type="checkbox" checked></td>
+                        <td><input class="filters" name="hours" type="checkbox" checked></td>
                     </tr>
                     <tr>
                         <th>Оценка</th>
-                        <td><input type="checkbox" checked></td>
+                        <td><input class="filters" name="mark" type="checkbox" checked></td>
                     </tr>
                     <tr>
                         <th>Дата</th>
-                        <td><input type="checkbox" checked></td>
+                        <td><input class="filters" name="date" type="checkbox" checked></td>
                     </tr>
                     <tr>
                         <th>Подпись</th>
-                        <td><input type="checkbox"></td>
+                        <td><input class="filters" name="signature" type="checkbox"></td>
                     </tr>
                     <tr>
                         <th>ФИО</th>
-                        <td><input type="checkbox" checked></td>
+                        <td><input class="filters" name="teacher" type="checkbox" checked></td>
                     </tr>
                 </tbody>
             </table>
             <span id="right-side">
                 <button id="reload-button"><span class="material-symbols-outlined">refresh</span></button>
                 <span class="mean-mark">
-                    Средний балл: <span id="mean-mark"></span>
-                </span>                
+                    Средний балл: <span id="mean-mark">{{ context["mean"] }}</span>
+                </span>
             </span>
         </div>
+        <table border="1px" class = "marks-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="type">Тип</th>
+                    <th class="subject">Предмет</th>
+                    <th class="hours">Часов</th>
+                    <th class="mark">Оценка</th>
+                    <th class="date">Дата</th>
+                    <th class="signature" hidden>Подпись</th>
+                    <th class="teacher">ФИО</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for semester in context["semesters"] %}
+                    {% for exam in context["semesters"][semester]["exams"][:1] %}
+                    <tr>
+                        <th rowspan="{{ context['semesters'][semester]['exams']|length +
+                                        context['semesters'][semester]['credits']|length }}">
+                            <div class = "semester-name">
+                                {{ semester }}
+                            </div>
+                        </th>
+                        <th class="type" rowspan="{{ context['semesters'][semester]['exams']|length }}">Э</th>
+                        <td class="subject">{{ exam["name"] }}</td>
+                        <td class="hours">{{ exam["hours"] }}</td>
+                        <td class="mark">{{ exam["mark"] }}</td>
+                        <td class="date">{{ exam["date"] }}</td>
+                        <td class="signature" hidden>{{ exam["signature"] }}</td>
+                        <td class="teacher">{{ exam["teacher"] }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for exam in context["semesters"][semester]["exams"][1:] %}
+                        <tr>
+                            <td class="subject">{{ exam["name"] }}</td>
+                            <td class="hours">{{ exam["hours"] }}</td>
+                            <td class="mark">{{ exam["mark"] }}</td>
+                            <td class="date">{{ exam["date"] }}</td>
+                            <td class="signature" hidden>{{ exam["signature"] }}</td>
+                            <td class="teacher">{{ exam["teacher"] }}</td>
+                        </tr>
+                    {% endfor %}
+                    {% for credit in context["semesters"][semester]["credits"][:1] %}
+                    <tr>
+                        <th class="type" rowspan="{{ context['semesters'][semester]['credits']|length }}">З</th>
+                        <td class="subject">{{ credit["name"] }}</td>
+                        <td class="hours">{{ credit["hours"] }}</td>
+                        <td class="mark">{{ credit["mark"] }}</td>
+                        <td class="date">{{ credit["date"] }}</td>
+                        <td class="signature" hidden>{{ credit["signature"] }}</td>
+                        <td class="teacher">{{ credit["teacher"] }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for credit in context["semesters"][semester]["credits"][1:] %}
+                        <tr>
+                            <td class="subject">{{ credit["name"] }}</td>
+                            <td class="hours">{{ credit["hours"] }}</td>
+                            <td class="mark">{{ credit["mark"] }}</td>
+                            <td class="date">{{ credit["date"] }}</td>
+                            <td class="signature" hidden>{{ credit["signature"] }}</td>
+                            <td class="teacher">{{ credit["teacher"] }}</td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>
