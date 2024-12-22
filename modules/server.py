@@ -6,7 +6,7 @@ from flask import Flask, request, redirect, url_for, render_template
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from modules.models import Base, Gradebook
+from modules.models import Base, Gradebook, Exam, Credit, Semester
 from modules.parser import MarksParser
 
 
@@ -23,7 +23,7 @@ def is_registered():
 
 def load_gradebook_info() -> dict:
     context = {}
-    s = db.query(Gradebook).filter(Gradebook.id == parser.find_gradebook_id()).first()
+    s = db.query(Gradebook).filter(Gradebook.id == parser.gradebook_id).first()
     context["gradebook_id"] = s.id
     context["name"] = s.name
     context["study_code"] = s.study_code
@@ -31,10 +31,6 @@ def load_gradebook_info() -> dict:
     context["faculty"] = s.faculty
     context["order"] = s.order
     return context
-
-# with open("temp.txt", encoding = "utf-8") as file:
-#     html = re.sub(r'>\s+<', '><', file.read().replace('\n', ''))
-#     soup = BeautifulSoup(html, "html.parser")
 
 
 load_dotenv()
@@ -49,9 +45,10 @@ def index_get():
         return redirect(url_for("login_get"))
     if "isu_person" not in parser.cookies:
         parser.update_cookies(request.cookies)
+    parser.save_gradebook()
     context = load_gradebook_info()
+    context |= parser.get_marks()
     return render_template("index.html", context = context)
-
 
 @app.route("/", methods=["POST"])
 def index_post():

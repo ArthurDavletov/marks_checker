@@ -1,26 +1,32 @@
+import datetime
 import re
 
+import bs4.element
 import requests
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from requests.cookies import RequestsCookieJar
 from sqlalchemy.orm.session import Session
-from sqlalchemy.orm.sync import update
 from werkzeug.datastructures import ImmutableMultiDict
 
-from modules.models import Gradebook
+from modules.models import Gradebook, Semester, Exam, Credit
 
 
 class MarksParser:
-    __slots__ = ("headers", "cookies", "form_num", "db", "gradebook_soup", "__in_account")
+    __slots__ = ("headers", "cookies", "form_num", "db", "gradebook_soup", "__in_account", "gradebook_id", "user_id")
 
     __main_url = "https://isu.uust.ru/"
     __login_url = f"{__main_url}login/"
     __card_url = f"{__main_url}isu_person_card/"
+    __mark_table = {"Отлично": 5, "Хорошо": 4, "Удовлетворительно": 3, "Неудовлетворительно": 2}
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: int = None, gradebook_id: int = None):
         """Инициализирует объект парсера.
-        :param db: База данных SQLAlchemy"""
+        :param db: База данных SQLAlchemy
+        :param user_id: Идентификатор пользователя. Или же isu_person
+        :param gradebook_id: Номер зачётной книжки. Он находится в таблице с краткой информацией"""
+        self.user_id = user_id
+        self.gradebook_id = gradebook_id
         self.__in_account = False
         self.db = db
         self.gradebook_soup = None
@@ -78,44 +84,117 @@ class MarksParser:
                     self.cookies.set(name=cookie, value = cookies[cookie])
         self.save_gradebook()
 
+    def __parse_exam(self, td: list[bs4.element.Tag]) -> Exam:
+        exam = Exam()
+        exam.name, exam.hours = td[1].string.strip(), td[2].string.strip()
+        mark, date, signature, teacher = td[3].string, td[4].string, td[5].string, td[6].string
+        if mark:
+            if mark == "Зачтено":
+                exam.status = True
+            else:
+                exam.mark = self.__mark_table.get(mark.strip())
+        if date: exam.date = datetime.date.fromisoformat(date.strip())
+        if signature: exam.signature = signature.strip()
+        if teacher: exam.teacher_name = teacher.strip()
+        return exam
+
+    def __parse_credit(self, td: list[bs4.element.Tag]) -> Credit:
+        cred = Credit()
+        cred.name, cred.hours = td[8].string.strip(), td[9].string.strip()
+        mark, date, signature, teacher = td[10].string, td[11].string, td[12].string, td[13].string
+        if mark:
+            if mark == "Зачтено":
+                cred.status = True
+            else:
+                cred.mark = self.__mark_table[mark.strip()]
+        if date: cred.date = datetime.date.fromisoformat(date.strip())
+        if signature: cred.signature = signature.strip()
+        if teacher: cred.teacher_name = teacher.strip()
+        return cred
+
+    def __fix_exams(self, exams: list[Exam], semester_id) -> list[Exam]:
+        new_exams = []
+        for exam in exams:
+            if exam.name and self.db.query(Exam).filter((Exam.semester_id == semester_id) &
+                                                        (Exam.name == exam.name)).first() is None:
+                exam.semester_id = semester_id
+                new_exams.append(exam)
+        return new_exams
+
+    def __fix_credits(self, credits_: list[Credit], semester_id) -> list[Credit]:
+        new_credits = []
+        for credit in credits_:
+            if credit.name and self.db.query(Credit).filter((Credit.semester_id == semester_id) &
+                                                            (Credit.name == credit.name)).first() is None:
+                credit.semester_id = semester_id
+                new_credits.append(credit)
+        return new_credits
+
+    def __add_semester(self, table: bs4.element.Tag):
+        exams, credits_ = [], []
+        for row in table.findAll("tr"):
+            td = row.findAll("td")
+            if not td:
+                continue
+            if td[1].string:
+                exams.append(self.__parse_exam(td))
+            if td[9].string:
+                credits_.append(self.__parse_credit(td))
+        if not (exams or credits_):
+            return
+        name = table.find("tr").string.strip()
+        semester = self.db.query(Semester).filter((Semester.gradebook_id == self.gradebook_id) &
+                                                  (Semester.name == name)).first()
+        if semester is None:
+            semester = Semester(name = name, gradebook_id = self.gradebook_id)
+            self.db.add(semester)
+            self.db.commit()
+        exams = self.__fix_exams(exams, semester.id)
+        credits_ = self.__fix_credits(credits_, semester.id)
+        if exams:
+            self.db.add_all(exams)
+        if credits_:
+            self.db.add_all(credits_)
+        self.db.commit()
+
     def save_gradebook(self):
         """Сохраняем информацию о зачётной книжке и предметов"""
         with requests.session() as session:
             session.cookies = self.cookies
-            for c, value in self.cookies.items():
-                if c == "isu_person":
-                    isu_person = int(value)
-                    break
+            if self.user_id is None:
+                for c, value in self.cookies.items():
+                    if c == "isu_person":
+                        self.user_id = int(value)
+                        break
             session.headers = self.headers
             card_text = session.get(self.__card_url).text
             button = BeautifulSoup(card_text, "html.parser").find("a", class_ = "btn-warning")
             site = f"{self.__main_url}{button.get("href")}"
             html_text = re.sub(r'>\s+<', '><', session.get(site).text.replace('\n', ''))
             self.gradebook_soup = BeautifulSoup(html_text, "html.parser")
-            if not self.db.query(Gradebook).filter(Gradebook.user_id == isu_person).first():
+            if not self.db.query(Gradebook).filter(Gradebook.user_id == self.user_id).first():
                 self.__save_gradebook_info()
-
-    def find_gradebook_id(self):
-        for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
-            value = elem.next_sibling.string
-            if elem.string == "Зачетная книжка":
-                return int(value)
+            for detail in self.gradebook_soup.findAll("details"):
+                t = detail.table.find("tr")
+                name = t.string.strip()
+                if name.startswith("Семестр"):
+                    self.__add_semester(detail.table)
 
     def __save_gradebook_info(self):
         """Сохранение краткой информации о зачётной книжке в БД.
         Запускается лишь тогда, когда нет информации в БД"""
-        gradebook_id, name, study_code, study_name, faculty, order = 0, None, None, None, None, None
+        name, study_code, study_name, faculty, order = None, None, None, None, None
         isu_id = int(self.cookies.get("isu_person"))
         for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
             value = elem.next_sibling.string
             match elem.string:
-                case "Зачетная книжка": gradebook_id = int(value)
+                case "Зачетная книжка": self.gradebook_id = int(value)
                 case "ФИО": name = value
                 case "Код специальности": study_code = value
                 case "Название специальности": study_name = value
                 case "Факультет": faculty = value
                 case "Дата зачисления": order = value
-        self.db.add(Gradebook(id = gradebook_id,
+        self.db.add(Gradebook(id = self.gradebook_id,
                               user_id = isu_id,
                               name = name,
                               study_code = study_code,
@@ -124,5 +203,37 @@ class MarksParser:
                               order = order))
         self.db.commit()
 
-if __name__ == '__main__':
-    pass
+    def get_marks(self) -> dict:
+        context = {"semesters": {}, "mean": 0}
+        n = 0
+        semesters = self.db.query(Semester).filter_by(gradebook_id = self.gradebook_id)
+        for semester in semesters:
+            context["semesters"][semester.name] = {"exams": [], "credits": []}
+            exams = self.db.query(Exam).filter_by(semester_id = semester.id)
+            for exam in exams:
+                if exam.mark:
+                    context["mean"] = (context["mean"] * n + exam.mark) / (n + 1)
+                    n += 1
+                context["semesters"][semester.name]["exams"].append({
+                    "name": exam.name,
+                    "hours": exam.hours,
+                    "date": datetime.date.strftime(exam.date, "%d.%m.%Y") if exam.date else "",
+                    "mark": exam.mark if exam.mark else "Зачтено" if exam.status else "",
+                    "signature": exam.signature if exam.signature else "",
+                    "teacher": exam.teacher_name if exam.teacher_name else ""
+                })
+            credits_ = self.db.query(Credit).filter_by(semester_id = semester.id)
+            for credit in credits_:
+                if credit.mark:
+                    context["mean"] = (context["mean"] * n + credit.mark) / (n + 1)
+                    n += 1
+                context["semesters"][semester.name]["credits"].append({
+                    "name": credit.name,
+                    "hours": credit.hours,
+                    "date": datetime.date.strftime(credit.date, "%d.%m.%Y") if credit.date else "",
+                    "mark": credit.mark if credit.mark else "Зачтено" if credit.status else "",
+                    "signature": credit.signature if credit.signature else "",
+                    "teacher": credit.teacher_name if credit.teacher_name else ""
+                })
+        context["mean"] = round(context["mean"], 2)
+        return context
