@@ -34,6 +34,13 @@ class MarksParser:
         self.headers = {"User-Agent": UserAgent().random}
         self.cookies = RequestsCookieJar()
 
+    def update_gradebook_id(self):
+        for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
+            value = elem.next_sibling.string
+            if elem.string == "Зачетная книжка":
+                self.gradebook_id = int(value)
+                break
+
     def __update_first_cookies(self) -> None:
         """Обновляет значение PHP-сессии в куки."""
         with requests.session() as session:
@@ -172,6 +179,7 @@ class MarksParser:
             site = f"{self.__main_url}{button.get("href")}"
             html_text = re.sub(r'>\s+<', '><', session.get(site).text.replace('\n', ''))
             self.gradebook_soup = BeautifulSoup(html_text, "html.parser")
+            self.update_gradebook_id()
             if not self.db.query(Gradebook).filter(Gradebook.user_id == self.user_id).first():
                 self.__save_gradebook_info()
             for detail in self.gradebook_soup.findAll("details"):
@@ -183,25 +191,28 @@ class MarksParser:
     def __save_gradebook_info(self):
         """Сохранение краткой информации о зачётной книжке в БД.
         Запускается лишь тогда, когда нет информации в БД"""
-        name, study_code, study_name, faculty, order = None, None, None, None, None
-        isu_id = int(self.cookies.get("isu_person"))
+        s = self.__get_gradebook_info()
+        self.db.add(Gradebook(id = self.gradebook_id,
+                              user_id = self.user_id,
+                              name = s["name"],
+                              study_code = s["study_code"],
+                              study_name = s["study_name"],
+                              faculty = s["faculty"],
+                              order = s["order"]))
+        self.db.commit()
+
+    def __get_gradebook_info(self) -> dict:
+        info = dict.fromkeys(("name", "study_code", "study_name", "faculty", "order"))
         for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
             value = elem.next_sibling.string
             match elem.string:
                 case "Зачетная книжка": self.gradebook_id = int(value)
-                case "ФИО": name = value
-                case "Код специальности": study_code = value
-                case "Название специальности": study_name = value
-                case "Факультет": faculty = value
-                case "Дата зачисления": order = value
-        self.db.add(Gradebook(id = self.gradebook_id,
-                              user_id = isu_id,
-                              name = name,
-                              study_code = study_code,
-                              study_name = study_name,
-                              faculty = faculty,
-                              order = order))
-        self.db.commit()
+                case "ФИО": info["name"] = value
+                case "Код специальности": info["study_code"] = value
+                case "Название специальности": info["study_name"] = value
+                case "Факультет": info["faculty"] = value
+                case "Дата зачисления": info["order"] = value
+        return info
 
     def get_marks(self) -> dict:
         context = {"semesters": {}, "mean": 0}
