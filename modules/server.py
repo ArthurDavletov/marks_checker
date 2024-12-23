@@ -50,9 +50,6 @@ def index_get():
     parser.save_gradebook()
     context = load_gradebook_info()
     context |= parser.get_marks()
-    s = db.query(Semester).all()
-    print(s)
-    print(*[p.name for p in s])
     return render_template("index.html", context = context)
 
 @app.route("/", methods=["POST"])
