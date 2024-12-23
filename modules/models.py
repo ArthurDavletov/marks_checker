@@ -32,7 +32,7 @@ class Semester(Base):
     __tablename__ = "semesters"
 
     id: Mapped[int] = mapped_column(primary_key = True, autoincrement = True)
-    name: Mapped[str] = String(10)
+    name: Mapped[str] = mapped_column(String(10))
     gradebook_id: Mapped[int] = mapped_column(ForeignKey("gradebooks.id"))
     exams: Mapped[List["Exam"]] = relationship("Exam", back_populates = "semester")
     credits: Mapped[List["Credit"]] = relationship("Credit", back_populates = "semester")
