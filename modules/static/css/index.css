@@ -3,7 +3,7 @@ nav {
     display: grid;
     grid-template-columns: auto 40px;
     grid-template-rows: 40px;
-    grid-template-areas: "empty logout";
+    grid-template-areas: "empty theme-change logout";
 }
 
 h1 {
