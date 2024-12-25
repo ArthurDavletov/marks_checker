@@ -3,3 +3,5 @@ services:
     image: marks_checker
     ports:
       - 5000:5000
+    build:
+        no_cache: true
