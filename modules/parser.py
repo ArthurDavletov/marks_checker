@@ -2,94 +2,244 @@ import datetime
 import re
 
 import bs4.element
-import requests
-from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
+import requests
 from requests.cookies import RequestsCookieJar
+from fake_useragent import UserAgent
 from sqlalchemy.orm.session import Session
 from werkzeug.datastructures import ImmutableMultiDict
 
 from modules.models import Gradebook, Semester, Exam, Credit, User
 
 
-class MarksParser:
-    __slots__ = ("headers", "cookies", "form_num", "db", "gradebook_soup", "__in_account", "gradebook_id", "user_id")
+class AuthMaster:
+    """Класс отвечает за авторизацию пользователя."""
 
+    __slots__ = ("__is_authed", "__cookies", "__headers", "__user_id")
     __main_url = "https://isu.uust.ru/"
     __login_url = f"{__main_url}login/"
-    __card_url = f"{__main_url}isu_person_card/"
-    __mark_table = {"Отлично": 5, "Хорошо": 4, "Удовлетворительно": 3, "Неудовлетворительно": 2}
 
-    def __init__(self, db: Session, user_id: int = None, gradebook_id: int = None):
-        """Инициализирует объект парсера.
-        :param db: База данных SQLAlchemy
-        :param user_id: Идентификатор пользователя. Или же isu_person
-        :param gradebook_id: Номер зачётной книжки. Он находится в таблице с краткой информацией"""
-        self.user_id = user_id
-        self.gradebook_id = gradebook_id
-        self.__in_account = False
-        self.db = db
-        self.gradebook_soup = None
-        self.form_num = None
-        self.headers = {"User-Agent": UserAgent().random}
-        self.cookies = RequestsCookieJar()
+    def __init__(self, cookies: RequestsCookieJar | ImmutableMultiDict[str, str] = None):
+        self.__is_authed: bool = False
+        self.__user_id: int | None = None
+        self.__cookies: RequestsCookieJar = RequestsCookieJar()
+        self.__headers: dict = {"User-Agent": UserAgent().random}
+        if cookies is None:
+            cookies = self.__generate_first_cookie()
+        self.update_cookies(cookies)
 
-    def update_gradebook_id(self):
-        for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
-            value = elem.next_sibling.string
-            if elem.string == "Зачетная книжка":
-                self.gradebook_id = int(value)
-                break
+    def update_cookies(self, cookies: RequestsCookieJar | ImmutableMultiDict[str, str]) -> None:
+        """Обновляет куки при их наличии"""
+        for cookie in cookies:
+            if isinstance(cookies, RequestsCookieJar):
+                if self.user_id is None and cookie.name == "isu_person":
+                    self.__user_id = int(cookie.value)
+                if cookie.name in self.__cookies:
+                    continue
+                self.__cookies.set(name = cookie.name, value = cookie.value, expires = cookie.expires,
+                                   path = cookie.path, secure = cookie.secure)
+            elif isinstance(cookie, str):  # передали словарь
+                if self.user_id is None and cookie == "isu_person":
+                    self.__user_id = int(cookies[cookie])
+                if cookie in self.__cookies:
+                    continue
+                self.__cookies.set(name = cookie, value = cookies[cookie])
 
-    def __update_first_cookies(self) -> None:
-        """Обновляет значение PHP-сессии в куки."""
+    @classmethod
+    def __generate_first_cookie(cls) -> RequestsCookieJar:
+        """Генерирует первые куки"""
         with requests.session() as session:
-            r = session.get(self.__main_url)
-            self.cookies.update(r.cookies)
+            return session.get(cls.__main_url).cookies
+
+    def __get_form_num(self) -> int:
+        """Получает специальное число с формы регистрации на сайте"""
+        with requests.session() as session:
+            form_num_get = session.get(self.__login_url, headers = self.__headers, cookies = self.cookies).text
+            soup = BeautifulSoup(form_num_get, "html.parser")
+            return int(soup.find("input", {"name": "form_num"}).get("value"))
 
     def auth(self, login: str, password: str) -> bool:
         """Попытка авторизации через логин и пароль.
         :param login: Логин от ЛК ИСУ УУНиТ.
         :param password: Пароль от ЛК ИСУ УУНиТ.
-        :returns: True при успешной авторизации. False - при неудачной"""
-        if "PHPSESSID" not in self.cookies:
-            self.__update_first_cookies()
+        :returns: ``True`` при успешной авторизации. ``False`` - при неудачной"""
         with requests.session() as session:
-            form_num_get = session.get(self.__login_url, headers = self.headers, cookies = self.cookies).text
-            soup = BeautifulSoup(form_num_get, "html.parser")
-            self.form_num = int(soup.find("input", {"name": "form_num"}).get("value"))
-            data = {"form_num": self.form_num, "login": login, "password": password}
-            page = session.post(self.__login_url, data = data, cookies = self.cookies,
-                                headers = self.headers, allow_redirects = False)
+            data = {"form_num": self.__get_form_num(), "login": login, "password": password}
+            page = session.post(self.__login_url, data = data, cookies = self.__cookies,
+                                headers = self.__headers, allow_redirects = False)
             if page.status_code == 200:
                 return False
-            self.__in_account = True
+            self.__is_authed = True
             page = session.post(self.__login_url, data = data, cookies = self.cookies,
-                                headers = self.headers)
+                                headers = self.__headers)
             self.update_cookies(page.cookies)
-            self.save_gradebook()
             return True
+
+    @property
+    def cookies(self) -> RequestsCookieJar:
+        return self.__cookies
+
+    @property
+    def user_id(self):
+        return self.__user_id
+
+    @property
+    def headers(self):
+        return self.__headers
 
     def exit(self):
         """Выход из аккаунта"""
         with requests.session() as session:
-            self.__in_account = False
-            session.get(self.__main_url, params = {"exit": "exit"}, headers = self.headers, cookies = self.cookies)
+            self.__is_authed = False
+            session.get(self.__main_url, params = {"exit": "exit"}, headers = self.__headers, cookies = self.__cookies)
 
-    def __del__(self):
-        if self.__in_account:
-            self.exit()
 
-    def update_cookies(self, cookies: RequestsCookieJar | ImmutableMultiDict[str, str]):
-        for cookie in cookies:
-            if isinstance(cookies, RequestsCookieJar):
-                if cookie.name not in self.cookies:
-                    self.cookies.set(name = cookie.name, value = cookie.value, expires = cookie.expires,
-                                     path = cookie.path, secure = cookie.secure)
-            elif isinstance(cookie, str):
-                if cookie not in self.cookies:
-                    self.cookies.set(name=cookie, value = cookies[cookie])
-        self.save_gradebook()
+class PageParser:
+    """Класс отвечает за парсинг и актуальность страницы оценок"""
+
+    __slots__ = ("auth_master", "db", "__marks_soup")
+
+    __main_url = "https://isu.uust.ru/"
+    __card_url = f"{__main_url}isu_person_card/"
+
+    def __init__(self, auth_master: AuthMaster, db: Session):
+        self.auth_master = auth_master
+        self.db = db
+        self.__marks_soup: BeautifulSoup | None = None
+
+    def update_soup(self):
+        """Обновляет soup, если сайт актуален."""
+        self.__check_and_update_site(self.__get_site())
+
+    def __check_and_update_site(self, site: str) -> None:
+        """Проверяет доступность сайта и обновляет soup, если он актуален."""
+        with requests.session() as session:
+            session.cookies = self.auth_master.cookies
+            session.headers = self.auth_master.headers
+            r = session.get(site)
+            if r.text == "STANDBY BAD SIGNAL":
+                site = self.__find_site()
+                self.__update_user_site(site)
+                r = session.get(site)
+            text = re.sub(r'>\s+<', '><', r.text.replace('\n', ''))
+            self.__marks_soup = BeautifulSoup(text, "html.parser")
+
+    def __get_site(self) -> str:
+        """Получает сайт с оценками, добавляет его при необходимости."""
+        user = self.db.query(User).filter_by(id = self.user_id).first()
+        if not user:
+            self.__create_user(self.user_id)
+            user = self.db.query(User).filter_by(id = self.user_id).first()
+        if user.site is None:  # всякое бывает, вдруг в БД не будет сайта
+            user.site = self.__find_site()
+            self.__update_user_site(user.site)
+        return user.site
+
+    def __create_user(self, user_id: int) -> None:
+        """Создаёт нового пользователя с актуальным сайтом оценок."""
+        self.db.add(User(id = user_id, site = self.__find_site()))
+        self.db.commit()
+
+    def __update_user_site(self, new_site: str) -> None:
+        """Обновляет сайт для пользователя в базе данных."""
+        self.db.query(User).filter_by(id = self.user_id).update({"site": new_site})
+        self.db.commit()
+
+    def __find_site(self) -> str:
+        """Находит актуальный сайт и возвращает его."""
+        with requests.session() as session:
+            session.cookies = self.auth_master.cookies
+            session.headers = self.auth_master.headers
+            print(session.cookies)
+            response = session.get(self.__card_url)
+            soup = BeautifulSoup(response.text, "html.parser")
+            button = soup.find("a", class_ = "btn-warning")
+            if button and button.get("href"):
+                return f"{self.__main_url}{button.get('href')}"
+            raise ValueError("Не удалось найти актуальный сайт.")
+
+    @property
+    def marks_soup(self):
+        return self.__marks_soup
+
+    @property
+    def user_id(self):
+        return self.auth_master.user_id
+
+
+class GradebookParser:
+    """Класс отвечает за парсинг информации о зачётке"""
+
+    __slots__ = ("__page_parser", "db", "__gradebook_id")
+
+    def __init__(self, page_parser: PageParser, db: Session):
+        self.__page_parser = page_parser
+        self.db = db
+        self.__gradebook_id: int | None = None
+
+    def __get_from_page(self) -> dict:
+        """Получает информацию из страницы на сайте."""
+        self.__page_parser.update_soup()
+        info = {}
+        for elem in self.__page_parser.marks_soup.findAll("th", class_ = "th-student"):
+            value = elem.next_sibling.string
+            match elem.string:
+                case "Зачетная книжка": info["gradebook_id"] = self.__gradebook_id = int(value)
+                case "ФИО": info["name"] = value
+                case "Код специальности": info["study_code"] = value
+                case "Название специальности": info["study_name"] = value
+                case "Факультет": info["faculty"] = value
+                case "Дата зачисления": info["order"] = value
+        self.__save_gradebook(info)
+        return info
+
+    def get_gradebook_info(self) -> dict:
+        query = self.db.query(Gradebook).filter_by(user_id = self.user_id)
+        if not query:
+            info = self.__get_from_page()
+            self.__save_gradebook(info)
+            return info
+        s = query.first()
+        self.__gradebook_id = s.id
+        return {"gradebook_id": s.id, "name": s.name, "study_code": s.study_code,
+                "study_name": s.study_name, "faculty": s.faculty, "order": s.order}
+
+    def __save_gradebook(self, info: dict):
+        """Сохранение краткой информации о зачётной книжке в БД.
+        Запускается лишь тогда, когда нет информации в БД"""
+        self.db.add(Gradebook(id = self.gradebook_id,
+                               user_id = self.user_id,
+                               name = info["name"],
+                               study_code = info["study_code"],
+                               study_name = info["study_name"],
+                               faculty = info["faculty"],
+                               order = info["order"]))
+        self.db.commit()
+
+    @property
+    def user_id(self):
+        return self.__page_parser.user_id
+
+    @property
+    def gradebook_id(self):
+        if self.__gradebook_id is None:
+            self.__gradebook_id = self.get_gradebook_info()["gradebook_id"]
+        return self.__gradebook_id
+
+
+class MarksParser:
+    """Класс отвечает за парсинг оценок на сайте"""
+    __slots__ = ("db", "__gradebook_parser", "__page_parser")
+
+    __mark_table = {"Отлично": 5, "Хорошо": 4, "Удовлетворительно": 3, "Неудовлетворительно": 2}
+
+    def __init__(self, page_parser: PageParser, gradebook_parser: GradebookParser, db: Session):
+        """Инициализирует объект парсера оценок.
+        :param db: База данных SQLAlchemy
+        :param page_parser: Парсер страницы с оценками"""
+        self.__page_parser = page_parser
+        self.__gradebook_parser = gradebook_parser
+        self.db = db
 
     def __parse_exam(self, td: list[bs4.element.Tag]) -> Exam:
         exam = Exam()
@@ -101,7 +251,7 @@ class MarksParser:
             else:
                 exam.mark = self.__mark_table.get(mark.strip())
         if date: exam.date = datetime.date.fromisoformat(date.strip())
-        if signature: exam.signature = signature.strip()
+        if signature: exam.signature = int(signature)
         if teacher: exam.teacher_name = teacher.strip()
         return exam
 
@@ -115,7 +265,7 @@ class MarksParser:
             else:
                 cred.mark = self.__mark_table[mark.strip()]
         if date: cred.date = datetime.date.fromisoformat(date.strip())
-        if signature: cred.signature = signature.strip()
+        if signature: cred.signature = int(signature)
         if teacher: cred.teacher_name = teacher.strip()
         return cred
 
@@ -164,60 +314,17 @@ class MarksParser:
             self.db.add_all(credits_)
         self.db.commit()
 
-    def save_gradebook(self):
-        """Сохраняем информацию о зачётной книжке и предметов"""
-        with requests.session() as session:
-            session.cookies = self.cookies
-            if self.user_id is None:
-                for c, value in self.cookies.items():
-                    if c == "isu_person":
-                        self.user_id = int(value)
-                        break
-            session.headers = self.headers
-            card_text = session.get(self.__card_url).text
-            button = BeautifulSoup(card_text, "html.parser").find("a", class_ = "btn-warning")
-            site = f"{self.__main_url}{button.get("href")}"
-            html_text = re.sub(r'>\s+<', '><', session.get(site).text.replace('\n', ''))
-            self.gradebook_soup = BeautifulSoup(html_text, "html.parser")
-            self.update_gradebook_id()
-            if not self.db.query(User).filter(User.id == self.user_id).first():
-                self.db.add(User(id=self.user_id))
-                self.db.commit()
-            if not self.db.query(Gradebook).filter(Gradebook.user_id == self.user_id).first():
-                self.__save_gradebook_info()
-            for detail in self.gradebook_soup.findAll("details"):
-                t = detail.table.find("tr")
-                name = t.string.strip()
-                if name.startswith("Семестр"):
-                    self.__add_semester(detail.table)
-
-    def __save_gradebook_info(self):
-        """Сохранение краткой информации о зачётной книжке в БД.
-        Запускается лишь тогда, когда нет информации в БД"""
-        s = self.__get_gradebook_info()
-        self.db.add(Gradebook(id = self.gradebook_id,
-                              user_id = self.user_id,
-                              name = s["name"],
-                              study_code = s["study_code"],
-                              study_name = s["study_name"],
-                              faculty = s["faculty"],
-                              order = s["order"]))
-        self.db.commit()
-
-    def __get_gradebook_info(self) -> dict:
-        info = dict.fromkeys(("name", "study_code", "study_name", "faculty", "order"))
-        for elem in self.gradebook_soup.findAll("th", class_ = "th-student"):
-            value = elem.next_sibling.string
-            match elem.string:
-                case "Зачетная книжка": self.gradebook_id = int(value)
-                case "ФИО": info["name"] = value
-                case "Код специальности": info["study_code"] = value
-                case "Название специальности": info["study_name"] = value
-                case "Факультет": info["faculty"] = value
-                case "Дата зачисления": info["order"] = value
-        return info
+    def save_semesters(self):
+        """Сохраняем информацию о предметах"""
+        for detail in self.__page_parser.marks_soup.findAll("details"):
+            t = detail.table.find("tr")
+            name = t.string.strip()
+            if name.startswith("Семестр"):
+                self.__add_semester(detail.table)
 
     def get_marks(self) -> dict:
+        self.__page_parser.update_soup()
+        self.save_semesters()
         context = {"semesters": {}, "mean": 0}
         n = 0
         semesters = self.db.query(Semester).filter_by(gradebook_id = self.gradebook_id)
@@ -251,3 +358,25 @@ class MarksParser:
                 })
         context["mean"] = round(context["mean"], 2)
         return context
+
+    @property
+    def user_id(self):
+        return self.__page_parser.user_id
+
+    @property
+    def gradebook_id(self):
+        return self.__gradebook_parser.gradebook_id
+
+
+class ISUParser:
+    """Отвечает за взаимодействие с сайтом"""
+
+    __slots__ = ("db", "auth_master", "__page_parser", "gradebook_parser", "marks_parser")
+
+    def __init__(self, db: Session, cookies: RequestsCookieJar | ImmutableMultiDict[str, str] | None = None):
+        self.db = db
+        self.auth_master = AuthMaster(cookies)
+        self.__page_parser = PageParser(self.auth_master, db)
+        self.gradebook_parser = GradebookParser(self.__page_parser, db)
+        self.marks_parser = MarksParser(self.__page_parser, self.gradebook_parser, db)
+        self.__page_parser.update_soup()

@@ -11,6 +11,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key = True)
+    site: Mapped[str | None] = mapped_column(String(250))
     gradebook: Mapped[List["Gradebook"]] = relationship("Gradebook", back_populates = "user")
 
 
