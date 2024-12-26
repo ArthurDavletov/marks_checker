@@ -194,15 +194,15 @@ class GradebookParser:
         return info
 
     def get_gradebook_info(self) -> dict:
-        query = self.db.query(Gradebook).filter_by(user_id = self.user_id)
+        query = self.db.query(Gradebook).filter_by(user_id = self.user_id).first()
         if not query:
             info = self.__get_from_page()
             self.__save_gradebook(info)
+            self.__gradebook_id = info["gradebook_id"]
             return info
-        s = query.first()
-        self.__gradebook_id = s.id
-        return {"gradebook_id": s.id, "name": s.name, "study_code": s.study_code,
-                "study_name": s.study_name, "faculty": s.faculty, "order": s.order}
+        self.__gradebook_id = query.id
+        return {"gradebook_id": query.id, "name": query.name, "study_code": query.study_code,
+                "study_name": query.study_name, "faculty": query.faculty, "order": query.order}
 
     def __save_gradebook(self, info: dict):
         """Сохранение краткой информации о зачётной книжке в БД.
