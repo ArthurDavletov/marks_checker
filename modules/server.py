@@ -1,5 +1,4 @@
 import os
-from time import sleep
 
 from flask import Flask, request, redirect, url_for, render_template, make_response, g
 from dotenv import load_dotenv
@@ -12,7 +11,6 @@ from modules.parser import ISUParser
 
 
 load_dotenv()
-# sleep(5)
 engine = create_engine(os.getenv("DATABASE_URL"))
 Base.metadata.create_all(bind = engine)
 DBSession = sessionmaker(bind = engine)

@@ -1,7 +1,11 @@
+networks:
+  marks_mysql_container:
 services:
   app:
     image: marks_checker
     build: .
+    networks:
+      - marks_mysql_container
     env_file:
       - ".env"
     ports:
@@ -10,6 +14,8 @@ services:
       - mysql
   mysql:
     image: mysql:latest
+    networks:
+      - marks_mysql_container
     env_file:
       - ".env"
     environment:
