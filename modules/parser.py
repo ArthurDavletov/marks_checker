@@ -63,12 +63,13 @@ class AuthMaster:
         :param password: Пароль от ЛК ИСУ УУНиТ.
         :returns: ``True`` при успешной авторизации. ``False`` - при неудачной"""
         with requests.session() as session:
+            if "PHPSESSID" not in self.cookies:
+                self.update_cookies(self.__generate_first_cookie())
             data = {"form_num": self.__get_form_num(), "login": login, "password": password}
             page = session.post(self.__login_url, data = data, cookies = self.__cookies,
                                 headers = self.__headers, allow_redirects = False)
             if page.status_code == 200:
                 return False
-            self.__is_authed = True
             page = session.post(self.__login_url, data = data, cookies = self.cookies,
                                 headers = self.__headers)
             self.update_cookies(page.cookies)
@@ -195,7 +196,6 @@ class GradebookParser:
         query = self.db.query(Gradebook).filter_by(user_id = self.user_id).first()
         if not query:
             info = self.__get_from_page()
-            self.__save_gradebook(info)
             self.__gradebook_id = info["gradebook_id"]
             return info
         self.__gradebook_id = query.id
