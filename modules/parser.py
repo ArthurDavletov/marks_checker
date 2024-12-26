@@ -20,7 +20,6 @@ class AuthMaster:
     __login_url = f"{__main_url}login/"
 
     def __init__(self, cookies: RequestsCookieJar | ImmutableMultiDict[str, str] = None):
-        self.__is_authed: bool = False
         self.__user_id: int | None = None
         self.__cookies: RequestsCookieJar = RequestsCookieJar()
         self.__headers: dict = {"User-Agent": UserAgent().random}
@@ -150,7 +149,6 @@ class PageParser:
         with requests.session() as session:
             session.cookies = self.auth_master.cookies
             session.headers = self.auth_master.headers
-            print(session.cookies)
             response = session.get(self.__card_url)
             soup = BeautifulSoup(response.text, "html.parser")
             button = soup.find("a", class_ = "btn-warning")
@@ -379,4 +377,5 @@ class ISUParser:
         self.__page_parser = PageParser(self.auth_master, db)
         self.gradebook_parser = GradebookParser(self.__page_parser, db)
         self.marks_parser = MarksParser(self.__page_parser, self.gradebook_parser, db)
-        self.__page_parser.update_soup()
+        if all(key in cookies for key in ("isu_person", "token", "PHPSESSID")):
+            self.__page_parser.update_soup()

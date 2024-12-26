@@ -18,10 +18,6 @@ services:
       - marks_mysql_container
     env_file:
       - ".env"
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD}
-    ports:
-      - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
 volumes:
