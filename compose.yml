@@ -1,0 +1,24 @@
+networks:
+  marks_mysql_container:
+services:
+  app:
+    image: marks_checker
+    build: .
+    networks:
+      - marks_mysql_container
+    env_file:
+      - ".env"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+  mysql:
+    image: mysql:latest
+    networks:
+      - marks_mysql_container
+    env_file:
+      - ".env"
+    volumes:
+      - mysql-data:/var/lib/mysql
+volumes:
+  mysql-data:

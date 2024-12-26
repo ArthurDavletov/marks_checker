@@ -1,0 +1,58 @@
+nav {
+    border-bottom: 2px solid;
+    display: grid;
+    grid-template-columns: auto 40px;
+    grid-template-rows: 40px;
+    grid-template-areas: "empty logout";
+}
+
+h1 {
+    text-align: center;
+}
+
+button.nav-button {
+    cursor: pointer;
+    border-width: 0px;
+    grid-area: logout;
+}
+
+table#indo {
+    grid-area: info;
+}
+
+div.main-body {
+    display: grid;
+    row-gap: 20px;
+}
+
+table#filters {
+    grid-area: filters;
+}
+
+button#logout-button {
+    border-left: 1px solid;
+}
+
+body {
+    margin: 0;
+}
+
+div.main-body {
+    margin: 2%;
+}
+
+span#right-side {
+    display: grid;
+    grid-area: right;
+    align-items: stretch;
+}
+
+span.mean-mark {
+    align-self: center;
+}
+
+div.before-marks {
+    display: grid;
+    grid-template-areas: "info filters right";
+    grid-template-columns: 2fr 2fr 1fr;
+}
